@@ -36,6 +36,9 @@ import java.util.Map;
 
 import javax.annotation.Nullable;
 
+import tool.StorageDirUtil;
+
+
 public class RCTCameraModule extends ReactContextBaseJavaModule
     implements MediaRecorder.OnInfoListener, MediaRecorder.OnErrorListener, LifecycleEventListener {
     private static final String TAG = "RCTCameraModule";
@@ -440,7 +443,7 @@ public class RCTCameraModule extends ReactContextBaseJavaModule
                 break;
             case RCT_CAMERA_CAPTURE_TARGET_CAMERA_ROLL:
                 ContentValues values = new ContentValues();
-                values.put(MediaStore.Video.Media.DATA, mVideoFile.getPath());
+                values.put(StorageDirUtil.getRealPath(MediaStore.Video.Media.DATA), mVideoFile.getPath());
                 values.put(MediaStore.Video.Media.TITLE, mRecordingOptions.hasKey("title") ? mRecordingOptions.getString("title") : "video");
 
                 if (mRecordingOptions.hasKey("description")) {
