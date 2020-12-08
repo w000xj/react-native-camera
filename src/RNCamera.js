@@ -27,8 +27,8 @@ const Rationale = PropTypes.shape({
 const requestPermissions = async (
   captureAudio: boolean,
   CameraManager: any,
-  androidCameraPermissionOptions: Rationale,
-  androidRecordAudioPermissionOptions: Rationale,
+  androidCameraPermissionOptions: Rationale | null,
+  androidRecordAudioPermissionOptions: Rationale | null,
 ): Promise<{ hasCameraPermissions: boolean, hasRecordAudioPermissions: boolean }> => {
   let hasCameraPermissions = false;
   let hasRecordAudioPermissions = false;
@@ -45,6 +45,8 @@ const requestPermissions = async (
     } else {
       hasCameraPermissions = cameraPermissionResult === PermissionsAndroid.RESULTS.GRANTED;
     }
+  } else if (Platform.OS === 'windows') {
+    hasCameraPermissions = await CameraManager.checkMediaCapturePermission();
   }
 
   if (captureAudio) {
@@ -69,6 +71,8 @@ const requestPermissions = async (
             `Otherwise you should set the 'captureAudio' property on the component instance to 'false'.`,
         );
       }
+    } else if (Platform.OS === 'windows') {
+      hasRecordAudioPermissions = await CameraManager.checkMediaCapturePermission();
     }
   }
 
@@ -140,6 +144,7 @@ type TrackedBarcodeFeature = {
   data: string,
   dataRaw: string,
   type: BarcodeType,
+  format?: string,
   addresses?: {
     addressesType?: 'UNKNOWN' | 'Work' | 'Home',
     addressLines?: string[],
@@ -202,7 +207,8 @@ type BarcodeType =
   | 'WIFI'
   | 'TEXT'
   | 'ISBN'
-  | 'PRODUCT';
+  | 'PRODUCT'
+  | 'URL';
 
 type Email = {
   address?: string,
@@ -221,6 +227,7 @@ type RecordingOptions = {
   maxFileSize?: number,
   orientation?: Orientation,
   quality?: number | string,
+  fps?: number,
   codec?: string,
   mute?: boolean,
   path?: string,
@@ -240,14 +247,22 @@ type Rect = {
 
 type PropsType = typeof View.props & {
   zoom?: number,
+  useNativeZoom?: boolean,
   maxZoom?: number,
   ratio?: string,
   focusDepth?: number,
   type?: number | string,
   onCameraReady?: Function,
+  onAudioInterrupted?: Function,
+  onAudioConnected?: Function,
   onStatusChange?: Function,
   onBarCodeRead?: Function,
+  onPictureTaken?: Function,
   onPictureSaved?: Function,
+  onRecordingStart?: Function,
+  onRecordingEnd?: Function,
+  onTap?: Function,
+  onDoubleTap?: Function,
   onGoogleVisionBarcodesDetected?: ({ barcodes: Array<TrackedBarcodeFeature> }) => void,
   onSubjectAreaChanged?: ({ nativeEvent: { prevPoint: {| x: number, y: number |} } }) => void,
   faceDetectionMode?: number,
@@ -257,7 +272,7 @@ type PropsType = typeof View.props & {
   barCodeTypes?: Array<string>,
   googleVisionBarcodeType?: number,
   googleVisionBarcodeMode?: number,
-  whiteBalance?: number | string,
+  whiteBalance?: number | string | {temperature: number, tint: number, redGainOffset?: number, greenGainOffset?: number, blueGainOffset?: number },
   faceDetectionLandmarks?: number,
   autoFocus?: string | boolean | number,
   autoFocusPointOfInterest?: { x: number, y: number },
@@ -265,6 +280,7 @@ type PropsType = typeof View.props & {
   onFacesDetected?: ({ faces: Array<TrackedFaceFeature> }) => void,
   onTextRecognized?: ({ textBlocks: Array<TrackedTextFeature> }) => void,
   captureAudio?: boolean,
+  keepAudioSession?: boolean,
   useCamera2Api?: boolean,
   playSoundOnCapture?: boolean,
   videoStabilizationMode?: number | string,
@@ -348,6 +364,7 @@ export default class Camera extends React.Component<PropsType, StateType> {
     GoogleVisionBarcodeDetection: CameraManager.GoogleVisionBarcodeDetection,
     FaceDetection: CameraManager.FaceDetection,
     CameraStatus,
+    CaptureTarget: CameraManager.CaptureTarget,
     RecordAudioPermissionStatus: RecordAudioPermissionStatusEnum,
     VideoStabilization: CameraManager.VideoStabilization,
     Orientation: {
@@ -370,20 +387,29 @@ export default class Camera extends React.Component<PropsType, StateType> {
     faceDetectionLandmarks: (CameraManager.FaceDetection || {}).Landmarks,
     faceDetectionClassifications: (CameraManager.FaceDetection || {}).Classifications,
     googleVisionBarcodeType: (CameraManager.GoogleVisionBarcodeDetection || {}).BarcodeType,
+    googleVisionBarcodeMode: (CameraManager.GoogleVisionBarcodeDetection || {}).BarcodeMode,
     videoStabilizationMode: CameraManager.VideoStabilization || {},
   };
 
   static propTypes = {
     ...ViewPropTypes,
     zoom: PropTypes.number,
+    useNativeZoom: PropTypes.bool,
     maxZoom: PropTypes.number,
     ratio: PropTypes.string,
     focusDepth: PropTypes.number,
     onMountError: PropTypes.func,
     onCameraReady: PropTypes.func,
+    onAudioInterrupted: PropTypes.func,
+    onAudioConnected: PropTypes.func,
     onStatusChange: PropTypes.func,
     onBarCodeRead: PropTypes.func,
+    onPictureTaken: PropTypes.func,
     onPictureSaved: PropTypes.func,
+    onRecordingStart: PropTypes.func,
+    onRecordingEnd: PropTypes.func,
+    onTap: PropTypes.func,
+    onDoubleTap: PropTypes.func,
     onGoogleVisionBarcodesDetected: PropTypes.func,
     onFacesDetected: PropTypes.func,
     onTextRecognized: PropTypes.func,
@@ -399,7 +425,11 @@ export default class Camera extends React.Component<PropsType, StateType> {
     cameraId: PropTypes.string,
     flashMode: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
     exposure: PropTypes.number,
-    whiteBalance: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    whiteBalance: PropTypes.oneOfType([PropTypes.string, PropTypes.number,
+      PropTypes.shape({ temperature: PropTypes.number, tint: PropTypes.number,
+        redGainOffset: PropTypes.number,
+        greenGainOffset: PropTypes.number,
+        blueGainOffset: PropTypes.number })]),
     autoFocus: PropTypes.oneOfType([PropTypes.string, PropTypes.number, PropTypes.bool]),
     autoFocusPointOfInterest: PropTypes.shape({ x: PropTypes.number, y: PropTypes.number }),
     permissionDialogTitle: PropTypes.string,
@@ -409,6 +439,7 @@ export default class Camera extends React.Component<PropsType, StateType> {
     notAuthorizedView: PropTypes.element,
     pendingAuthorizationView: PropTypes.element,
     captureAudio: PropTypes.bool,
+    keepAudioSession: PropTypes.bool,
     useCamera2Api: PropTypes.bool,
     playSoundOnCapture: PropTypes.bool,
     videoStabilizationMode: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
@@ -420,6 +451,7 @@ export default class Camera extends React.Component<PropsType, StateType> {
 
   static defaultProps: Object = {
     zoom: 0,
+    useNativeZoom: false,
     maxZoom: 0,
     ratio: '4:3',
     focusDepth: 0,
@@ -439,14 +471,8 @@ export default class Camera extends React.Component<PropsType, StateType> {
     faceDetectionClassifications: ((CameraManager.FaceDetection || {}).Classifications || {}).none,
     permissionDialogTitle: '',
     permissionDialogMessage: '',
-    androidCameraPermissionOptions: {
-      title: '',
-      message: '',
-    },
-    androidRecordAudioPermissionOptions: {
-      title: '',
-      message: '',
-    },
+    androidCameraPermissionOptions: null,
+    androidRecordAudioPermissionOptions: null,
     notAuthorizedView: (
       <View style={styles.authorizationContainer}>
         <Text style={styles.notAuthorizedText}>Camera not authorized</Text>
@@ -458,6 +484,7 @@ export default class Camera extends React.Component<PropsType, StateType> {
       </View>
     ),
     captureAudio: true,
+    keepAudioSession: false,
     useCamera2Api: false,
     playSoundOnCapture: false,
     pictureSize: 'None',
@@ -531,6 +558,14 @@ export default class Camera extends React.Component<PropsType, StateType> {
     }
   }
 
+  getSupportedPreviewFpsRange = async (): Promise<[]> => {
+    if (Platform.OS === 'android') {
+      return await CameraManager.getSupportedPreviewFpsRange(this._cameraHandle);
+    } else {
+      throw new Error('getSupportedPreviewFpsRange is not supported on iOS');
+    }
+  };
+
   getAvailablePictureSizes = async (): string[] => {
     //$FlowFixMe
     return await CameraManager.getAvailablePictureSizes(this.props.ratio, this._cameraHandle);
@@ -589,6 +624,14 @@ export default class Camera extends React.Component<PropsType, StateType> {
     CameraManager.stopRecording(this._cameraHandle);
   }
 
+  pauseRecording() {
+    CameraManager.pauseRecording(this._cameraHandle);
+  }
+
+  resumeRecording() {
+    CameraManager.resumeRecording(this._cameraHandle);
+  }
+
   pausePreview() {
     CameraManager.pausePreview(this._cameraHandle);
   }
@@ -610,6 +653,25 @@ export default class Camera extends React.Component<PropsType, StateType> {
   _onCameraReady = () => {
     if (this.props.onCameraReady) {
       this.props.onCameraReady();
+    }
+  };
+
+  _onAudioInterrupted = () => {
+    if (this.props.onAudioInterrupted) {
+      this.props.onAudioInterrupted();
+    }
+  };
+  _onTouch = ({ nativeEvent }: EventCallbackArgumentsType) => {
+    if (this.props.onTap && !nativeEvent.isDoubleTap) {
+      this.props.onTap(nativeEvent.touchOrigin);
+    }
+    if (this.props.onDoubleTap && nativeEvent.isDoubleTap) {
+      this.props.onTap(nativeEvent.touchOrigin);
+    }
+  };
+  _onAudioConnected = () => {
+    if (this.props.onAudioConnected) {
+      this.props.onAudioConnected();
     }
   };
 
@@ -775,10 +837,13 @@ export default class Camera extends React.Component<PropsType, StateType> {
             ref={this._setReference}
             onMountError={this._onMountError}
             onCameraReady={this._onCameraReady}
+            onAudioInterrupted={this._onAudioInterrupted}
+            onAudioConnected={this._onAudioConnected}
             onGoogleVisionBarcodesDetected={this._onObjectDetected(
               this.props.onGoogleVisionBarcodesDetected,
             )}
             onBarCodeRead={this._onObjectDetected(this.props.onBarCodeRead)}
+            onTouch={this._onTouch}
             onFacesDetected={this._onObjectDetected(this.props.onFacesDetected)}
             onTextRecognized={this._onObjectDetected(this.props.onTextRecognized)}
             onPictureSaved={this._onPictureSaved}
@@ -809,12 +874,15 @@ export default class Camera extends React.Component<PropsType, StateType> {
       newProps.faceDetectorEnabled = true;
     }
 
+    if (props.onTap || props.onDoubleTap) {
+      newProps.touchDetectorEnabled = true;
+    }
+
     if (props.onTextRecognized) {
       newProps.textRecognizerEnabled = true;
     }
 
     if (Platform.OS === 'ios') {
-      delete newProps.googleVisionBarcodeMode;
       delete newProps.ratio;
     }
 
@@ -838,6 +906,7 @@ const RNCamera = requireNativeComponent('RNCamera', Camera, {
     accessibilityLabel: true,
     accessibilityLiveRegion: true,
     barCodeScannerEnabled: true,
+    touchDetectorEnabled: true,
     googleVisionBarcodeDetectorEnabled: true,
     faceDetectorEnabled: true,
     textRecognizerEnabled: true,
@@ -845,8 +914,11 @@ const RNCamera = requireNativeComponent('RNCamera', Camera, {
     onBarCodeRead: true,
     onGoogleVisionBarcodesDetected: true,
     onCameraReady: true,
+    onAudioInterrupted: true,
+    onAudioConnected: true,
     onPictureSaved: true,
     onFaceDetected: true,
+    onTouch: true,
     onLayout: true,
     onMountError: true,
     onSubjectAreaChanged: true,

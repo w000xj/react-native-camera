@@ -20,6 +20,7 @@ import com.google.android.cameraview.Size;
 
 import javax.annotation.Nullable;
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Properties;
 import java.util.List;
@@ -270,11 +271,8 @@ public class CameraModule extends ReactContextBaseJavaModule {
                 promise.reject("E_CAMERA_UNAVAILABLE", "Camera is not running");
               }
           }
-          catch(IllegalStateException e){
-            promise.reject("E_CAMERA_UNAVAILABLE", e.getMessage());
-          }
           catch (Exception e) {
-            promise.reject("E_CAMERA_BAD_VIEWTAG", e.getMessage());
+            promise.reject("E_TAKE_PICTURE_FAILED", e.getMessage());
           }
       }
     });
@@ -324,6 +322,48 @@ public class CameraModule extends ReactContextBaseJavaModule {
               }
           }
       });
+  }
+
+  @ReactMethod
+  public void pauseRecording(final int viewTag) {
+    final ReactApplicationContext context = getReactApplicationContext();
+    UIManagerModule uiManager = context.getNativeModule(UIManagerModule.class);
+    uiManager.addUIBlock(new UIBlock() {
+      @Override
+      public void execute(NativeViewHierarchyManager nativeViewHierarchyManager) {
+          final RNCameraView cameraView;
+
+          try {
+              cameraView = (RNCameraView) nativeViewHierarchyManager.resolveView(viewTag);
+              if (cameraView.isCameraOpened()) {
+                  cameraView.pauseRecording();
+              }
+          } catch (Exception e) {
+              e.printStackTrace();
+          }
+      }
+    });
+  }
+
+  @ReactMethod
+  public void resumeRecording(final int viewTag) {
+    final ReactApplicationContext context = getReactApplicationContext();
+    UIManagerModule uiManager = context.getNativeModule(UIManagerModule.class);
+    uiManager.addUIBlock(new UIBlock() {
+      @Override
+      public void execute(NativeViewHierarchyManager nativeViewHierarchyManager) {
+          final RNCameraView cameraView;
+
+          try {
+              cameraView = (RNCameraView) nativeViewHierarchyManager.resolveView(viewTag);
+              if (cameraView.isCameraOpened()) {
+                  cameraView.resumeRecording();
+              }
+          } catch (Exception e) {
+              e.printStackTrace();
+          }
+      }
+    });
   }
 
   @ReactMethod
@@ -424,5 +464,32 @@ public class CameraModule extends ReactContextBaseJavaModule {
           e.printStackTrace();
       }
       promise.resolve(false);
+  }
+
+  @ReactMethod
+  public void getSupportedPreviewFpsRange(final int viewTag, final Promise promise) {
+      final ReactApplicationContext context = getReactApplicationContext();
+      UIManagerModule uiManager = context.getNativeModule(UIManagerModule.class);
+      uiManager.addUIBlock(new UIBlock() {
+          @Override
+          public void execute(NativeViewHierarchyManager nativeViewHierarchyManager) {
+              final RNCameraView cameraView;
+
+              try {
+                  cameraView = (RNCameraView) nativeViewHierarchyManager.resolveView(viewTag);
+                  WritableArray result = Arguments.createArray();
+                  ArrayList<int[]> ranges = cameraView.getSupportedPreviewFpsRange();
+                  for (int[] range : ranges) {
+                      WritableMap m = new WritableNativeMap();
+                      m.putInt("MAXIMUM_FPS", range[0]);
+                      m.putInt("MINIMUM_FPS", range[1]);
+                      result.pushMap(m);
+                  }
+                  promise.resolve(result);
+              } catch (Exception e) {
+                  e.printStackTrace();
+              }
+          }
+      });
   }
 }
