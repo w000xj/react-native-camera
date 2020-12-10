@@ -3,9 +3,9 @@ package org.reactnative.facedetector.tasks;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import androidx.exifinterface.media.ExifInterface;
 import android.net.Uri;
 import android.os.AsyncTask;
+import android.support.media.ExifInterface;
 import android.util.Log;
 import android.util.SparseArray;
 

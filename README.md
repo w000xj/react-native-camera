@@ -143,3 +143,7 @@ To report a security vulnerability, please use the
 [Tidelift security contact](https://tidelift.com/security).
 
 Tidelift will coordinate the fix and disclosure.
+
+
+
+## 基于v3.25.0版本解决的一些bug，修改成不使用androidx

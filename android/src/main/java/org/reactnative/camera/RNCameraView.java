@@ -8,8 +8,8 @@ import android.content.res.Resources;
 import android.graphics.Color;
 import android.media.CamcorderProfile;
 import android.os.Build;
-import androidx.core.content.ContextCompat;
 
+import android.support.v4.content.ContextCompat;
 import android.util.DisplayMetrics;
 import android.view.GestureDetector;
 import android.view.MotionEvent;

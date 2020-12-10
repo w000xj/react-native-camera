@@ -14,7 +14,7 @@ buildscript {
 
     dependencies {
       //noinspection GradleDependency
-      classpath("com.android.tools.build:gradle:3.6.3")
+      classpath("com.android.tools.build:gradle:3.4.2")
     }
   }
 }
@@ -47,8 +47,8 @@ android {
   }
 
   packagingOptions {
-    exclude 'META-INF/androidx.exifinterface_exifinterface.version'
-    exclude 'META-INF/proguard/androidx-annotations.pro'
+//    exclude 'META-INF/androidx.exifinterface_exifinterface.version'
+//    exclude 'META-INF/proguard/androidx-annotations.pro'
   }
 }
 
@@ -67,13 +67,12 @@ dependencies {
   def googlePlayServicesVisionVersion = safeExtGet('googlePlayServicesVisionVersion', safeExtGet('googlePlayServicesVersion', '17.0.2'))
 
   //noinspection GradleDynamicVersion
-  implementation 'com.facebook.react:react-native:+'  // From node_modules
-  implementation "com.google.zxing:core:3.3.3"
-  implementation "com.drewnoakes:metadata-extractor:2.11.0"
-  generalImplementation "com.google.android.gms:play-services-vision:$googlePlayServicesVisionVersion"
-  implementation "androidx.exifinterface:exifinterface:1.0.0"
-  implementation "androidx.annotation:annotation:1.0.0"
-  implementation "androidx.legacy:legacy-support-v4:1.0.0"
-  mlkitImplementation "com.google.firebase:firebase-ml-vision:${safeExtGet('firebase-ml-vision', '19.0.3')}"
-  mlkitImplementation "com.google.firebase:firebase-ml-vision-face-model:${safeExtGet('firebase-ml-vision-face-model', '17.0.2')}"
+  compileOnly 'com.facebook.infer.annotation:infer-annotation:+'
+  implementation "com.google.zxing:core:3.3.0"
+  implementation "com.drewnoakes:metadata-extractor:2.9.1"
+  implementation "com.google.android.gms:play-services-vision:$googlePlayServicesVisionVersion"
+  implementation "com.android.support:exifinterface:27.1.0"
+  implementation "com.android.support:support-annotations:27.1.0"
+  implementation "com.android.support:support-v4:27.1.0"
+  implementation 'com.walmartlabs.ern:react-native:0.59.8'
 }
